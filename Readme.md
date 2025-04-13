@@ -2,7 +2,7 @@
 
 👨‍💻 Tác giả : Đặng Hoàng Minh
 
-## Dự án khởi đầu cho ứng dụng **Express.js** viết bằng **TypeScript** với hỗ trợ ESM, alias `~/`, hot-reload, và cấu hình build sạch.
+## Dự án khởi đầu cho ứng dụng **Express.js** với **TypeScript**
 
 ### 1. Clone và cài đặt
 
