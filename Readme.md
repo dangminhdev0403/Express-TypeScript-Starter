@@ -15,4 +15,7 @@ npm run dev
 ### 3. 🛠 Build và chạy production
 
 npm run build # Biên dịch TypeScript + xử lý alias
+
+###
+
 npm start # Chạy file đã build
