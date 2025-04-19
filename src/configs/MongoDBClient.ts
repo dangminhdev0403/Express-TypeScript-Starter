@@ -1,33 +1,28 @@
 import logger from '@configs/logger.js'
 import dotenv from 'dotenv'
-import { Db, MongoClient, ServerApiVersion } from 'mongodb'
+import { Db, MongoClient, ServerApiVersion, UUID } from 'mongodb'
+
 dotenv.config()
 
-// 🔧 Helper: loại bỏ các trường kỹ thuật khỏi command log
+// Kiểm tra biến môi trường
+const requiredEnvVars = ['MONGO_URI', 'DB_NAME', 'DB_COLLECTION_USERS'] as const
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    throw new Error(`Missing required environment variable: ${envVar}`)
+  }
+}
+
+// Helper: Làm sạch command log
 function cleanMongoCommand(command: Record<string, any>) {
   const { apiVersion, apiStrict, apiDeprecationErrors, lsid, txnNumber, $clusterTime, $db, ...rest } = command
 
-  // Log thông tin giao dịch MongoDB
-  logger.info(`Transaction Number: ${txnNumber ?? 'N/A'}`) // Kiểm tra nếu txnNumber tồn tại, nếu không thì ghi 'N/A'
-  logger.info(`API Version: ${apiVersion}`) // Log phiên bản API
-  logger.info(`API Strict Mode: ${apiStrict}`) // Log chế độ strict của API
-  logger.info(`Deprecation Errors Enabled: ${apiDeprecationErrors}`) // Log nếu có lỗi deprecation
+  logger.info(`Transaction Number: ${txnNumber ?? 'N/A'}`)
+  logger.info(`API Version: ${apiVersion ?? 'N/A'}`)
+  logger.info(`API Strict Mode: ${apiStrict ?? 'N/A'}`)
+  logger.info(`Deprecation Errors Enabled: ${apiDeprecationErrors ?? 'N/A'}`)
+  logger.info(`Cluster Time: ${$clusterTime?.clusterTime ?? 'N/A'}`)
+  logger.info(`Session ID (LSID): ${lsid?.id instanceof UUID ? lsid.id.toString() : 'N/A'}`)
 
-  // Kiểm tra và log thông tin Cluster Time nếu có
-  if ($clusterTime && $clusterTime.clusterTime) {
-    logger.info(`Cluster Time: ${$clusterTime.clusterTime}`)
-  } else {
-    logger.info(`Cluster Time: N/A`) // Nếu không có Cluster Time thì ghi 'N/A'
-  }
-
-  // Kiểm tra và log thông tin Session ID (LSID) nếu có
-  if (lsid && lsid.id) {
-    logger.info(`Session ID (LSID): ${lsid.id}`)
-  } else {
-    logger.info(`Session ID (LSID): N/A`) // Nếu không có LSID thì ghi 'N/A'
-  }
-
-  // Trả về các trường còn lại của command và thêm thông tin db
   return { ...rest, db: $db }
 }
 
@@ -36,19 +31,24 @@ export class MongoDBClient {
   private readonly client: MongoClient
   private readonly db: Db
   private readonly uri: string
+  private isConnected: boolean = false
 
   private constructor() {
-    this.uri = process.env.MONGO_URI as string
-
+    this.uri = process.env.MONGO_URI!
     this.client = new MongoClient(this.uri, {
       serverApi: { version: ServerApiVersion.v1, strict: true, deprecationErrors: true },
-      monitorCommands: true
+      monitorCommands: process.env.NODE_ENV !== 'production', // Chỉ monitor ở non-production
+      retryWrites: true,
+      retryReads: true,
+      maxPoolSize: 10 // Giới hạn connection pool
     })
 
+    this.db = this.client.db(process.env.DB_NAME!)
+
+    // Command monitoring
     this.client.on('commandStarted', (event) => {
       const commandToLog = cleanMongoCommand(event.command)
-
-      logger.debug(`[MongoDB][Started] ${event.commandName} → ${JSON.stringify(commandToLog, null, 2)}`)
+      logger.debug(`[MongoDB][Started] ${event.commandName} → ${JSON.stringify(commandToLog)}`)
     })
 
     this.client.on('commandSucceeded', (event) => {
@@ -58,30 +58,64 @@ export class MongoDBClient {
     this.client.on('commandFailed', (event) => {
       logger.error(`[MongoDB][Failed] ${event.commandName}`, event.failure)
     })
-
-    this.db = this.client.db(process.env.DB_NAME)
   }
 
   static getInstance(): MongoDBClient {
     MongoDBClient.instance ??= new MongoDBClient()
+
     return MongoDBClient.instance
   }
 
   async connect(): Promise<void> {
+    if (this.isConnected) {
+      logger.info('MongoDB client already connected')
+      return
+    }
     try {
+      await this.client.connect() // Kết nối rõ ràng
       await this.client.db('admin').command({ ping: 1 })
+      this.isConnected = true
       logger.info('✅ Connected to MongoDB')
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('❌ MongoDB connection failed:', error)
-      throw error
+      if (error instanceof Error) {
+        throw new Error(`MongoDB connection failed: ${error.message}`)
+      }
     }
   }
 
+  async close(): Promise<void> {
+    try {
+      if (this.isConnected) {
+        await this.client.close()
+        this.isConnected = false
+        logger.info('MongoDB client disconnected')
+      }
+    } catch (error: unknown) {
+      logger.error('Error closing MongoDB client:', error)
+
+      if (error instanceof Error) {
+        throw new Error(`Failed to close MongoDB client: ${error.message}`)
+      }
+      throw new Error('Failed to close MongoDB client: Unknown error')
+    }
+  }
+
+  isClientConnected(): boolean {
+    return this.isConnected
+  }
+
   getClient(): MongoClient {
+    if (!this.isConnected) {
+      throw new Error('MongoDB client is not connected')
+    }
     return this.client
   }
 
   getDb(): Db {
+    if (!this.isConnected) {
+      throw new Error('MongoDB client is not connected')
+    }
     return this.db
   }
 }
