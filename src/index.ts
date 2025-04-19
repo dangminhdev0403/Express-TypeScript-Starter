@@ -1,19 +1,32 @@
-import express, { Router } from 'express'
+import { ENV } from '@configs/env.js'
+import { MongoDBClient } from '@configs/MongoDBClient.js'
+import { morganMiddleware } from '@configs/morgan.js'
+import homeRouter from '@routers/users.routers.js'
+import express from 'express'
 
-const port = 8080
-const router = Router()
+const port = Number(ENV.PORT_NAME)
+const ip = '127.0.0.1' // localhost
+const app = express()
 
-const app = express() // <-- thiếu dòng này
+app.use(express.json())
 
-app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`)
-})
+// Sử dụng router cho người dùng
+app.use('/', homeRouter)
+app.use(morganMiddleware)
 
-router.get('/', (req, res) => {
-  res.send('Hello World!')
-})
+async function startServer() {
+  try {
+    // Nếu cần kết nối MongoDB, bỏ comment và cấu hình tại .env
+    const dbClient = MongoDBClient.getInstance()
+    await dbClient.connect()
 
-router.get('/test', (req, res) => {
-  res.send('Hello World2!')
-})
-app.use(router)
+    app.listen(port, ip, () => {
+      console.log(`🚀 Server đang chạy tại http://${ip}:${port}`)
+    })
+  } catch (error) {
+    console.error('❌ Không thể khởi động server:', error)
+    process.exit(1)
+  }
+}
+
+startServer()
