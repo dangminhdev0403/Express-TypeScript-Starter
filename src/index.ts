@@ -1,10 +1,9 @@
-import { ENV } from '@configs/env.js'
 import { MongoDBClient } from '@configs/MongoDBClient.js'
 import { morganMiddleware } from '@configs/morgan.js'
 import homeRouter from '@routers/users.routers.js'
 import express from 'express'
 
-const port = Number(ENV.PORT_NAME)
+const port = Number(process.env.PORT_NAME)
 const ip = '127.0.0.1' // localhost
 const app = express()
 
