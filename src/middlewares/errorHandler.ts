@@ -6,32 +6,36 @@ import { NextFunction, Request, Response } from 'express'
 
 /**
  * Middleware xử lý lỗi tập trung trong toàn hệ thống.
- * Phải có đủ 4 tham số (err, req, res, next) thì Express mới nhận dạng là middleware lỗi.
+ * Phải có đủ 4 tham số (err, req, res, next) thì Express mới nhận dạng đây là middleware lỗi.
  */
 export const errorHandler = (
   err: Error,
   req: Request,
   res: Response,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  next: NextFunction // ⬅️ PHẢI có để Express nhận ra đây là error-handling middleware
+  next: NextFunction
 ) => {
-  // Nếu là lỗi có chủ đích được tạo ra bằng AppError
+  // ✅ Lỗi được tạo ra có chủ đích
   if (err instanceof AppError) {
-    const errorRes = createResponse(
-      err.statusCode,
-      err.message,
-      null,
-      err.errors // chứa chi tiết lỗi nếu có (vd: mảng lỗi validate)
-    )
+    const errorRes = createResponse({
+      statusCode: err.statusCode,
+      message: err.message,
+
+      errors: err.errors
+    })
 
     return res.status(err.statusCode).json(errorRes)
   }
 
-  // Với các lỗi không dự đoán được (không phải AppError)
+  // ❌ Lỗi không đoán trước được (lỗi hệ thống, lỗi thư viện bên ngoài,...)
   console.error('❌ Unexpected error:', err)
 
-  return res.status(500).json({
+  const errorRes = createResponse({
+    statusCode: 500,
     message: 'Internal Server Error',
-    error: err.message // hoặc log nhiều hơn nếu cần
+    data: null,
+    errors: process.env.NODE_ENV === 'development' ? err : null
   })
+
+  return res.status(500).json(errorRes)
 }
