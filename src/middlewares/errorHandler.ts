@@ -5,8 +5,7 @@ import { AppError } from '@utils/errors/AppError.js'
 import { NextFunction, Request, Response } from 'express'
 
 /**
- * Middleware xử lý lỗi tập trung trong toàn hệ thống.
- * Phải có đủ 4 tham số (err, req, res, next) thì Express mới nhận dạng đây là middleware lỗi.
+ * Middleware xử lý lỗi tập trung toàn hệ thống.
  */
 export const errorHandler = (
   err: Error,
@@ -15,26 +14,34 @@ export const errorHandler = (
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   next: NextFunction
 ) => {
-  // ✅ Lỗi được tạo ra có chủ đích
   if (err instanceof AppError) {
+    // ✅ Lỗi chủ động, có message, statusCode, errors cụ thể
     const errorRes = createResponse({
       statusCode: err.statusCode,
       message: err.message,
-
+      data: null,
       errors: err.errors
     })
 
     return res.status(err.statusCode).json(errorRes)
   }
 
-  // ❌ Lỗi không đoán trước được (lỗi hệ thống, lỗi thư viện bên ngoài,...)
+  // ❌ Lỗi không lường trước: đưa thông tin vào errors nếu đang dev
   console.error('❌ Unexpected error:', err)
+
+  const isDev = process.env.NODE_ENV === 'development'
 
   const errorRes = createResponse({
     statusCode: 500,
     message: 'Internal Server Error',
     data: null,
-    errors: process.env.NODE_ENV === 'development' ? err : null
+    errors: isDev
+      ? {
+          name: err.name,
+          message: err.message,
+          stack: err.stack
+        }
+      : null
   })
 
   return res.status(500).json(errorRes)
