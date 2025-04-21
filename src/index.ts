@@ -1,7 +1,8 @@
 import { MongoDBClient } from '@configs/MongoDBClient.js'
 import { morganMiddleware } from '@configs/morgan.js'
+import { errorHandler } from '@middlewares/errorHandler.js'
 import homeRouter from '@routers/users.routers.js'
-import express from 'express'
+import express, { ErrorRequestHandler } from 'express'
 
 const port = Number(process.env.PORT_NAME)
 const ip = '127.0.0.1' // localhost
@@ -12,6 +13,9 @@ app.use(express.json())
 // Sử dụng router cho người dùng
 app.use('/', homeRouter)
 app.use(morganMiddleware)
+
+// đặt cuối cùng middleware 
+app.use(errorHandler as unknown as ErrorRequestHandler)
 
 async function startServer() {
   try {
