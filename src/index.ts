@@ -14,7 +14,7 @@ app.use(express.json())
 app.use('/', homeRouter)
 app.use(morganMiddleware)
 
-// đặt cuối cùng middleware 
+// đặt cuối cùng middleware
 app.use(errorHandler as unknown as ErrorRequestHandler)
 
 async function startServer() {

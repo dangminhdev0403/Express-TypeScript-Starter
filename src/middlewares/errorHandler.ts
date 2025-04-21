@@ -12,6 +12,7 @@ export const errorHandler = (
   err: Error,
   req: Request,
   res: Response,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   next: NextFunction // ⬅️ PHẢI có để Express nhận ra đây là error-handling middleware
 ) => {
   // Nếu là lỗi có chủ đích được tạo ra bằng AppError
